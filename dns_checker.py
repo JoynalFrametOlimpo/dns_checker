@@ -5,6 +5,7 @@ import dns.reversename
 import dns.zone
 import dns.query
 import dns.message
+import dns.dnssec
 import socket
 import nmap3
 import simplejson as json
@@ -110,6 +111,7 @@ class DnsChecker:
                 print(bcolor.YELLOW + "TXT record: " + bcolor.WHITE + index)
             print(bcolor.YELLOW + "SOA (Start of authority) : " + bcolor.WHITE + self.soa)
             print(bcolor.YELLOW + "MX (Mail Server): " + bcolor.WHITE + self.mx)
+
         except Exception as e:
             print(e)
 
@@ -119,7 +121,7 @@ class DnsChecker:
             query = dns.message.make_query(self.domain, dns.rdatatype.DS, dns.rdataclass.IN)
             query.flags += dns.flags.CD
             query.use_edns(edns=True, payload=4096)
-            query.want_dnssec(True)
+            print(bcolor.YELLOW + "DNSSEC : " + str(query.want_dnssec(True)))
 
             print(bcolor.RED + "************Validación de disponibilidad de server DNS **************" + bcolor.GREEN)
             i=1
@@ -151,7 +153,7 @@ class DnsChecker:
             zone = dns.zone.from_xfr(dns.query.xfr(ip,self.domain))
             names = zone.nodes.keys()
             for n in names:
-                print(z[n].to_text(n))
+                print(zone[n].to_text(n))
         except dns.xfr.TransferError:
             print ("Transferencia de Zona para el dominio {0} no esta autorizada ".format(self.domain))
 
@@ -161,13 +163,10 @@ class DnsChecker:
          return subprocess.call(command) == 0
 
 if __name__ == '__main__':
-    domain = "ticgobi.com"
+    #domain = "prueba.com"
+    domain = input ("Ingrese el dominio a evaluar: ")
     try:
         obj = DnsChecker(domain)
         obj.print_data()
     except socket.gaierror:
         print (bcolor.RED + " Advertencia: Dominio no existe !!")
-
-
-    #domain = input ("Ingrese el dominio a evaluar: ")
-    #get_dns_data(str(domain))
