@@ -1,11 +1,14 @@
+import platform
+import subprocess
 import dns.resolver
 import dns.reversename
 import dns.zone
 import dns.query
 import dns.message
 import socket
-
-
+import nmap3
+import simplejson as json
+from pygments import highlight, lexers, formatters
 import dns.rdatatype
 import dns.flags
 
@@ -13,18 +16,25 @@ class bcolor:
     RED = '\033[91m'
     GREEN = '\033[92m'
     YELLOW = '\033[93m'
-    WHITE  = ''\033[97m'
+    WHITE  = '\033[97m'
 
+class NmapScan:
+    state = ""
+    os = ""
+    def __init__(self, ip):
+        n = nmap3.Nmap()
+        result = n.nmap_os_detection(ip)
+        for data in result:
+            self.os = data['cpe']
 
 class DnsChecker:
-
     domain = ""
     ip = ""
     ns = []
     txt = []
     soa = ""
     mx = ""
-    timeout = 0.8
+    timeout = 5.0
     def banner(self):
         flag = """
           =======================================================================================================
@@ -89,6 +99,20 @@ class DnsChecker:
         except Exception as e:
             print( "No se pudo resolver MX (Mail Server for accepting email messages) del dominio : " + self.domain)
 
+    def get_general_info(self):
+        try:
+            print(bcolor.RED +  "********** Información General *******************" + bcolor.GREEN)
+            print(bcolor.YELLOW + "Dominio : " + bcolor.WHITE + self.domain)
+            print(bcolor.YELLOW + "IP : " + bcolor.WHITE + self.ip)
+            for index in self.ns:
+                print(bcolor.YELLOW + "NameServer: " + bcolor.WHITE + index)
+            for index in self.txt:
+                print(bcolor.YELLOW + "TXT record: " + bcolor.WHITE + index)
+            print(bcolor.YELLOW + "SOA (Start of authority) : " + bcolor.WHITE + self.soa)
+            print(bcolor.YELLOW + "MX (Mail Server): " + bcolor.WHITE + self.mx)
+        except Exception as e:
+            print(e)
+
     def query_response_time(self):
         answer = ""
         try:
@@ -98,58 +122,52 @@ class DnsChecker:
             query.want_dnssec(True)
 
             print(bcolor.RED + "************Validación de disponibilidad de server DNS **************" + bcolor.GREEN)
+            i=1
             for data in self.ns:
+                print(bcolor.RED + "************ DNS Sever # {0} **************".format(i) + bcolor.GREEN)
                 answer = dns.query.udp(query, socket.gethostbyname(data), self.timeout)
-                print("Server {0} ".format(data) + socket.gethostbyname(data))
-                print("Tamaño de carga util EDNS (payload) : " + str(answer.payload))
-                print("Flags del mensaje: " + str(answer.flags))
+                print(bcolor.YELLOW + "Server: " + bcolor.WHITE + format(data) + bcolor.YELLOW + " IP : " + bcolor.WHITE + socket.gethostbyname(data) + bcolor.YELLOW + " Estado : " +  bcolor.WHITE + "Operativo" )
+                print(bcolor.YELLOW + "Timeout : " + bcolor.WHITE)
+                self.ping(socket.gethostbyname(data))
+                print(bcolor.YELLOW + "Tamaño de carga util EDNS (payload) : " + bcolor.WHITE + str(answer.payload))
+                print(bcolor.YELLOW + "Flags del mensaje: " + bcolor.WHITE + str(answer.flags))
+                scan = NmapScan(str(socket.gethostbyname(data)))
+                print("Sistema Operativo : " + scan.os)
+                self.transfer_zone(socket.gethostbyname(data))
+                i += 1
         except dns.exception.Timeout:
-            print("Tiempo de espera superado al tratar de llegar al servidor DNS en {0} segundos ".format(self.timeout))
+            print(bcolor.RED + " Advertencia!! -> Tiempo de espera superado al tratar de llegar al servidor DNS en {0} segundos ".format(self.timeout))
         except Exception as e:
             raise
 
-
     def print_data(self):
-        print(bcolor.RED +  "********** Información General *******************" + bcolor.GREEN)
-        print("Dominio : " + self.domain)
-        print("IP : " + self.ip)
-        for index in self.ns:
-            print("NameServer: " + index)
-        for index in self.txt:
-            print("TXT record: " + index)
-        print("SOA (Start of authority) : " + self.soa)
-        print("MX (Mail Server): " + self.mx)
+        self.get_general_info()
         self.query_response_time()
 
-
-    def get_dns_zone(domain):
+    def transfer_zone(self, ip):
         try:
             print (bcolor.RED + "######## Zones Transference #######################" + bcolor.GREEN)
-            print (dns.query.xfr("178.238.238.235","ns1.contabo.net"))
-            z = dns.zone.from_xfr(dns.query.xfr(domain,"ns1.contabo.net"))
-            print (z)
-            names = z.nodes.keys()
-            names.sort()
+            #z = dns.zone.from_xfr(dns.query.xfr("81.4.108.41","zonetransfer.me"))
+            zone = dns.zone.from_xfr(dns.query.xfr(ip,self.domain))
+            names = zone.nodes.keys()
             for n in names:
                 print(z[n].to_text(n))
-        except Exception as e:
-            print (e)
+        except dns.xfr.TransferError:
+            print ("Transferencia de Zona para el dominio {0} no esta autorizada ".format(self.domain))
 
-    def get_property(domain):
-        print("#########  PROPERTY ##############")
-        print(dns.name.from_text(domain))
-        print(dns.name.from_unicode(domain))
-
-
+    def ping(self, ip):
+         param = '-n' if platform.system().lower()=='windows' else '-c'
+         command = ['ping', param, '1', ip]
+         return subprocess.call(command) == 0
 
 if __name__ == '__main__':
     domain = "ticgobi.com"
-    obj = DnsChecker(domain)
+    try:
+        obj = DnsChecker(domain)
+        obj.print_data()
+    except socket.gaierror:
+        print (bcolor.RED + " Advertencia: Dominio no existe !!")
 
-    obj.print_data()
-    #get_dns_data(domain)
-    #get_property(domain)
-    #gt_dns_zone(domain)
 
     #domain = input ("Ingrese el dominio a evaluar: ")
     #get_dns_data(str(domain))
