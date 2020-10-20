@@ -1,2 +1,2 @@
-#sudo pip3 install python3-nmap
 python3-nmap
+dnspython

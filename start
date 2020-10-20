@@ -1,0 +1,1 @@
+docker build --tag pythondns:1.0 . && clear &&docker run -it pythondns:1.0 python3 /app/dns_checker.py

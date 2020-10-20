@@ -152,6 +152,7 @@ class DnsChecker:
             #z = dns.zone.from_xfr(dns.query.xfr("81.4.108.41","zonetransfer.me"))
             zone = dns.zone.from_xfr(dns.query.xfr(ip,self.domain))
             names = zone.nodes.keys()
+            print ("Zona de Transferencia Activada....... A continuación la lista encontrada")
             for n in names:
                 print(zone[n].to_text(n))
         except dns.xfr.TransferError:
